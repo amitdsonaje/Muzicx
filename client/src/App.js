@@ -1,42 +1,3 @@
-// import React, {useState, useEffect } from 'react'
-
-//    function App(){
-//      const [data, setData] = useState([{}])
-//      const [error, setError] = useState(null)
-
-//      useEffect(() => {
-//        fetch("http://localhost:5001/members")
-//          .then(res => {
-//            if (!res.ok) {
-//              throw new Error(`HTTP error! status: ${res.status}`);
-//            }
-//            return res.json();
-//          })
-//          .then(data => {
-//            setData(data)
-//            console.log("Data received:", data)
-//          })
-//          .catch(e => {
-//            console.error("Fetch error:", e)
-//            setError(e.message)
-//          })
-//      }, [])
-
-//      return (
-//        <div>
-//          {error && <p>Error: {error}</p>}
-//          {data.members && (
-//            <ul>
-//              {data.members.map((member, index) => (
-//                <li key={index}>{member}</li>
-//              ))}
-//            </ul>
-//          )}
-//        </div>
-//      )
-//    }
-
-//    export default App
 import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 
@@ -47,6 +8,8 @@ function App() {
   const [songs, setSongs] = useState([]);
   const [currentSong, setCurrentSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
   const audioRef = useRef(null);
   const socketRef = useRef(null);
 
@@ -76,6 +39,10 @@ function App() {
       }
     });
 
+    socketRef.current.on('new_message', (data) => {
+      setMessages((prevMessages) => [...prevMessages, data]);
+    });
+
     return () => {
       socketRef.current.disconnect();
     };
@@ -98,6 +65,7 @@ function App() {
   const leaveRoom = () => {
     socketRef.current.emit('leave', { username, room });
     setJoined(false);
+    setMessages([]);
   };
 
   const playSong = (song) => {
@@ -110,6 +78,14 @@ function App() {
 
   const resumeSong = () => {
     socketRef.current.emit('resume', { room });
+  };
+
+  const sendMessage = (e) => {
+    e.preventDefault();
+    if (newMessage.trim()) {
+      socketRef.current.emit('send_message', { username, room, message: newMessage });
+      setNewMessage('');
+    }
   };
 
   return (
@@ -135,25 +111,46 @@ function App() {
           <h2>Welcome, {username}!</h2>
           <h3>Room: {room}</h3>
           <button onClick={leaveRoom}>Leave Room</button>
-          <h3>Songs:</h3>
-          <ul>
-            {songs.map((song, index) => (
-              <li key={index} onClick={() => playSong(song)}>
-                {song}
-              </li>
-            ))}
-          </ul>
-          {currentSong && (
-            <div>
-              <h4>Now Playing: {currentSong}</h4>
-              {isPlaying ? (
-                <button onClick={pauseSong}>Pause</button>
-              ) : (
-                <button onClick={resumeSong}>Resume</button>
+          <div style={{ display: 'flex' }}>
+            <div style={{ flex: 1 }}>
+              <h3>Songs:</h3>
+              <ul>
+                {songs.map((song, index) => (
+                  <li key={index} onClick={() => playSong(song)}>
+                    {song}
+                  </li>
+                ))}
+              </ul>
+              {currentSong && (
+                <div>
+                  <h4>Now Playing: {currentSong}</h4>
+                  {isPlaying ? (
+                    <button onClick={pauseSong}>Pause</button>
+                  ) : (
+                    <button onClick={resumeSong}>Resume</button>
+                  )}
+                </div>
               )}
+              <audio ref={audioRef} />
             </div>
-          )}
-          <audio ref={audioRef} />
+            <div style={{ flex: 1 }}>
+              <h3>Chat:</h3>
+              <div style={{ height: '300px', overflowY: 'scroll', border: '1px solid #ccc' }}>
+                {messages.map((msg, index) => (
+                  <p key={index}><strong>{msg.username}:</strong> {msg.message}</p>
+                ))}
+              </div>
+              <form onSubmit={sendMessage}>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                />
+                <button type="submit">Send</button>
+              </form>
+            </div>
+          </div>
         </div>
       )}
     </div>
